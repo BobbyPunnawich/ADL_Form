@@ -1,51 +1,42 @@
 import { NextResponse } from "next/server";
+import { getDB } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
-import { db } from "@/db";
-import { responses, forms } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const formId = searchParams.get("formId");
+  const db = getDB();
 
-  const query = db
-    .select({
-      id: responses.id,
-      sessionId: responses.sessionId,
-      sectionScores: responses.sectionScores,
-      totalScore: responses.totalScore,
-      status: responses.status,
-      terminatedAtSection: responses.terminatedAtSection,
-      submittedAt: responses.submittedAt,
-      formTitle: forms.title,
-    })
-    .from(responses)
-    .innerJoin(forms, eq(responses.formId, forms.id))
-    .orderBy(desc(responses.submittedAt));
+  let query = db
+    .from("responses")
+    .select("*, forms(title)")
+    .order("submitted_at", { ascending: false });
 
-  if (formId) {
-    const results = await query.where(eq(responses.formId, parseInt(formId)));
-    return NextResponse.json(results);
-  }
+  if (formId) query = query.eq("form_id", parseInt(formId));
 
-  const results = await query;
-  return NextResponse.json(results);
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
 }
 
 export async function POST(req: Request) {
+  const db = getDB();
   const body = await req.json();
-  const [response] = await db
-    .insert(responses)
-    .values({
-      formId: body.formId,
-      sessionId: body.sessionId,
+  const { data, error } = await db
+    .from("responses")
+    .insert({
+      form_id: body.formId,
+      session_id: body.sessionId,
       answers: body.answers,
-      sectionScores: body.sectionScores,
-      totalScore: body.totalScore,
+      section_scores: body.sectionScores,
+      total_score: body.totalScore,
       status: body.status,
-      terminatedAtSection: body.terminatedAtSection ?? null,
+      terminated_at_section: body.terminatedAtSection ?? null,
     })
-    .returning();
-  return NextResponse.json(response, { status: 201 });
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
 }

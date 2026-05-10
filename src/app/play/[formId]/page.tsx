@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/db";
-import { forms, sections, questions } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { getDB } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import PlayerClient from "./PlayerClient";
+import type { FormWithSections } from "@/types/db";
 
 export default async function PlayPage({
   params,
@@ -13,31 +12,23 @@ export default async function PlayPage({
 }) {
   const { formId } = await params;
   const id = parseInt(formId);
+  const db = getDB();
 
-  const form = await db.query.forms.findFirst({ where: eq(forms.id, id) });
-  if (!form) notFound();
+  const { data: form, error } = await db.from("forms").select("*").eq("id", id).single();
+  if (error || !form) notFound();
 
-  const sectionList = await db
-    .select()
-    .from(sections)
-    .where(eq(sections.formId, id))
-    .orderBy(asc(sections.order));
+  const { data: sections } = await db
+    .from("sections")
+    .select("*, questions(*)")
+    .eq("form_id", id)
+    .order("order");
 
-  const questionList = await db
-    .select()
-    .from(questions)
-    .orderBy(asc(questions.sectionId), asc(questions.order));
-
-  const sectionsWithQuestions = sectionList.map((s) => ({
+  const sectionsWithSorted = (sections ?? []).map((s: any) => ({
     ...s,
-    questions: questionList
-      .filter((q) => q.sectionId === s.id)
-      .sort((a, b) => a.order - b.order),
+    questions: [...(s.questions ?? [])].sort((a: any, b: any) => a.order - b.order),
   }));
 
-  return (
-    <PlayerClient
-      form={{ ...form, sections: sectionsWithQuestions }}
-    />
-  );
+  const fullForm: FormWithSections = { ...form, sections: sectionsWithSorted };
+
+  return <PlayerClient form={fullForm} />;
 }

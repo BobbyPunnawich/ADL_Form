@@ -12,6 +12,7 @@
     "db:seed": "npx tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.6",

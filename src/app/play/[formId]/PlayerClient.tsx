@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Form, Section, Question } from "@/db/schema";
-import { calcSectionScore, checkBranchingLogic, calcTotalScore } from "@/lib/scoring";
-import OptionCard from "@/components/OptionCard";
+import type { FormWithSections, SectionWithQuestions, AnswerValue } from "@/types/db";
+import AnswerInput, { type Lang } from "@/components/player/AnswerInput";
 import NavButton from "@/components/NavButton";
 import ProgressBar from "@/components/ProgressBar";
+import { calcSectionScore, isQuestionAnswered } from "@/lib/scoring";
 
-type SectionWithQuestions = Section & { questions: Question[] };
-type FormWithSections = Form & { sections: SectionWithQuestions[] };
-type AnswerMap = Record<string, { optionIndex: number; score: number }>;
+type AnswerMap = Record<string, AnswerValue>;
 
 type PageState =
   | { screen: "intro" }
@@ -22,66 +20,49 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [sectionScores, setSectionScores] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [lang, setLang] = useState<Lang>("th");
 
   const allSections = form.sections;
+  const flatQuestions = allSections.flatMap((s) => s.questions.map((q) => ({ question: q, section: s })));
 
-  const flatQuestions = allSections.flatMap((s) =>
-    s.questions.map((q) => ({ question: q, section: s }))
-  );
-
-  const currentSection =
-    page.screen === "question" ? allSections[page.sectionIdx] : null;
-  const currentQuestion =
-    page.screen === "question"
-      ? currentSection?.questions[page.questionIdx] ?? null
-      : null;
-
+  const currentSection = page.screen === "question" ? allSections[page.sectionIdx] : null;
+  const currentQuestion = page.screen === "question" ? currentSection?.questions[page.questionIdx] ?? null : null;
   const totalQuestionsInSection = currentSection?.questions.length ?? 0;
-  const selectedOption =
-    currentQuestion ? answers[currentQuestion.id.toString()] : undefined;
 
-  const handleSelect = useCallback(
-    (questionId: number, optionIndex: number, score: number) => {
-      setAnswers((prev) => ({
-        ...prev,
-        [questionId.toString()]: { optionIndex, score },
-      }));
-    },
-    []
-  );
+  const handleAnswerChange = useCallback((questionId: number, value: AnswerValue) => {
+    setAnswers((prev) => ({ ...prev, [questionId.toString()]: value }));
+  }, []);
 
-  const finishSection = useCallback(
-    async (sectionIdx: number) => {
-      const section = allSections[sectionIdx];
-      const score = calcSectionScore(section.questions, answers);
-      const newSectionScores = { ...sectionScores, [section.id.toString()]: score };
-      setSectionScores(newSectionScores);
+  const finishSection = useCallback(async (sectionIdx: number) => {
+    const section = allSections[sectionIdx];
+    const score = calcSectionScore(section.questions, answers);
+    const newScores = { ...sectionScores, [section.id.toString()]: score };
+    setSectionScores(newScores);
 
-      const branch = checkBranchingLogic(section, score);
-      if (branch.action === "terminate") {
-        // Save partial response then show termination screen
-        await saveResponse(newSectionScores, "terminated", section.id);
-        setPage({ screen: "terminated", message: branch.message });
-        return;
-      }
+    const minScore = section.minimum_score;
+    const fails = minScore !== null && minScore > 0 && score < minScore;
 
-      if (sectionIdx + 1 < allSections.length) {
-        setPage({ screen: "question", sectionIdx: sectionIdx + 1, questionIdx: 0 });
-      } else {
-        await saveResponse(newSectionScores, "completed", undefined);
-        setPage({ screen: "done" });
-      }
-    },
-    [allSections, answers, sectionScores]
-  );
+    if (fails) {
+      await saveResponse(newScores, "terminated", section.id);
+      setPage({
+        screen: "terminated",
+        message: section.termination_message ??
+          "ขอบคุณสำหรับการตอบแบบสอบถาม คะแนนของท่านไม่ผ่านเกณฑ์ขั้นต่ำสำหรับส่วนนี้",
+      });
+      return;
+    }
 
-  const saveResponse = async (
-    scores: Record<string, number>,
-    status: string,
-    terminatedAtSection?: number
-  ) => {
+    if (sectionIdx + 1 < allSections.length) {
+      setPage({ screen: "question", sectionIdx: sectionIdx + 1, questionIdx: 0 });
+    } else {
+      await saveResponse(newScores, "completed", undefined);
+      setPage({ screen: "done" });
+    }
+  }, [allSections, answers, sectionScores]);
+
+  const saveResponse = async (scores: Record<string, number>, status: string, terminatedAtSection?: number) => {
     setSubmitting(true);
-    const total = calcTotalScore(scores);
+    const total = Object.values(scores).reduce((s, v) => s + v, 0);
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await fetch("/api/responses", {
       method: "POST",
@@ -103,7 +84,6 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
     if (page.screen !== "question") return;
     const { sectionIdx, questionIdx } = page;
     const section = allSections[sectionIdx];
-
     if (questionIdx + 1 < section.questions.length) {
       setPage({ screen: "question", sectionIdx, questionIdx: questionIdx + 1 });
     } else {
@@ -118,15 +98,11 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
       setPage({ screen: "question", sectionIdx, questionIdx: questionIdx - 1 });
     } else if (sectionIdx > 0) {
       const prevSection = allSections[sectionIdx - 1];
-      setPage({
-        screen: "question",
-        sectionIdx: sectionIdx - 1,
-        questionIdx: prevSection.questions.length - 1,
-      });
+      setPage({ screen: "question", sectionIdx: sectionIdx - 1, questionIdx: prevSection.questions.length - 1 });
     }
   };
 
-  // ── Intro screen ──────────────────────────────────────────────────────────
+  // ── Intro ──────────────────────────────────────────────────────────────────
   if (page.screen === "intro") {
     return (
       <main className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-6">
@@ -137,19 +113,13 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">{form.title}</h1>
-          {form.description && (
-            <p className="text-xl text-gray-600 mb-8 leading-relaxed">{form.description}</p>
-          )}
+          {form.description && <p className="text-xl text-gray-600 mb-8 leading-relaxed">{form.description}</p>}
           <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-5 mb-8 text-left">
             <p className="text-lg text-yellow-800 font-medium">
               📋 คำแนะนำ: กรุณาตอบคำถามทุกข้อตามความเป็นจริง ไม่มีคำตอบถูกหรือผิด
             </p>
           </div>
-          <NavButton
-            onClick={() =>
-              setPage({ screen: "question", sectionIdx: 0, questionIdx: 0 })
-            }
-          >
+          <NavButton onClick={() => setPage({ screen: "question", sectionIdx: 0, questionIdx: 0 })}>
             เริ่มทำแบบสอบถาม →
           </NavButton>
         </div>
@@ -157,7 +127,7 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
     );
   }
 
-  // ── Terminated screen ─────────────────────────────────────────────────────
+  // ── Terminated ────────────────────────────────────────────────────────────
   if (page.screen === "terminated") {
     return (
       <main className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
@@ -174,7 +144,7 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
     );
   }
 
-  // ── Done screen ───────────────────────────────────────────────────────────
+  // ── Done ──────────────────────────────────────────────────────────────────
   if (page.screen === "done") {
     return (
       <main className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-6">
@@ -197,23 +167,45 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
   if (!currentSection || !currentQuestion) return null;
 
   const globalCurrent =
-    allSections
-      .slice(0, page.sectionIdx)
-      .reduce((s, sec) => s + sec.questions.length, 0) +
-    page.questionIdx +
-    1;
+    allSections.slice(0, page.sectionIdx).reduce((s, sec) => s + sec.questions.length, 0) +
+    page.questionIdx + 1;
   const globalTotal = flatQuestions.length;
   const isFirstQuestion = page.sectionIdx === 0 && page.questionIdx === 0;
   const isLastInSection = page.questionIdx === totalQuestionsInSection - 1;
   const isLastSection = page.sectionIdx === allSections.length - 1;
   const isLastQuestion = isLastInSection && isLastSection;
 
+  const currentAnswer = answers[currentQuestion.id.toString()];
+  const canProceed = isQuestionAnswered(currentQuestion, currentAnswer);
+
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <header className="bg-white border-b-2 border-gray-200 px-6 py-4">
         <div className="max-w-3xl mx-auto">
-          <p className="text-lg text-gray-500 mb-3 font-medium">{form.title}</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-lg text-gray-500 font-medium">{form.title}</p>
+            {/* Language toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              <button
+                type="button"
+                onClick={() => setLang("th")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                  lang === "th" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                ภาษาไทย
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                  lang === "en" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                English
+              </button>
+            </div>
+          </div>
           <ProgressBar
             current={globalCurrent}
             total={globalTotal}
@@ -222,61 +214,37 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
         </div>
       </header>
 
-      {/* Question area */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="max-w-3xl w-full">
-          {/* Section description */}
           {page.questionIdx === 0 && currentSection.description && (
             <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 mb-6">
               <p className="text-lg text-blue-800">{currentSection.description}</p>
             </div>
           )}
 
-          {/* Question card */}
           <div className="bg-white rounded-3xl shadow-lg p-8 mb-6">
             <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-3">
               คำถามที่ {globalCurrent} จาก {globalTotal}
             </p>
             <h2 className="text-3xl font-bold text-gray-900 mb-8 leading-snug">
-              {currentQuestion.text}
+              {lang === "en" && currentQuestion.text_en
+                ? currentQuestion.text_en
+                : currentQuestion.text}
             </h2>
-
-            <div className="space-y-4">
-              {currentQuestion.options.map((opt, i) => (
-                <OptionCard
-                  key={i}
-                  label={opt.label}
-                  score={opt.score}
-                  selected={selectedOption?.optionIndex === i}
-                  onSelect={() =>
-                    handleSelect(currentQuestion.id, i, opt.score)
-                  }
-                  index={i}
-                />
-              ))}
-            </div>
+            <AnswerInput
+              question={currentQuestion}
+              answer={currentAnswer}
+              onChange={(value) => handleAnswerChange(currentQuestion.id, value)}
+              lang={lang}
+            />
           </div>
 
-          {/* Navigation */}
           <div className="flex justify-between gap-4">
-            <NavButton
-              onClick={handleBack}
-              variant="secondary"
-              disabled={isFirstQuestion}
-            >
+            <NavButton onClick={handleBack} variant="secondary" disabled={isFirstQuestion}>
               ← ย้อนกลับ
             </NavButton>
-            <NavButton
-              onClick={handleNext}
-              disabled={selectedOption === undefined || submitting}
-            >
-              {submitting
-                ? "กำลังบันทึก..."
-                : isLastQuestion
-                ? "ส่งคำตอบ ✓"
-                : isLastInSection
-                ? "ไปส่วนถัดไป →"
-                : "ถัดไป →"}
+            <NavButton onClick={handleNext} disabled={!canProceed || submitting}>
+              {submitting ? "กำลังบันทึก..." : isLastQuestion ? "ส่งคำตอบ ✓" : isLastInSection ? "ไปส่วนถัดไป →" : "ถัดไป →"}
             </NavButton>
           </div>
         </div>

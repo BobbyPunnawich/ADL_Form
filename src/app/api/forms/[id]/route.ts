@@ -1,39 +1,32 @@
 import { NextResponse } from "next/server";
+import { getDB } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
-import { db } from "@/db";
-import { forms, sections, questions } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const formId = parseInt(id);
+  const db = getDB();
 
-  const form = await db.query.forms.findFirst({
-    where: eq(forms.id, formId),
-  });
-  if (!form) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const { data: form, error: formErr } = await db
+    .from("forms")
+    .select("*")
+    .eq("id", parseInt(id))
+    .single();
+  if (formErr) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const sectionList = await db
-    .select()
-    .from(sections)
-    .where(eq(sections.formId, formId))
-    .orderBy(asc(sections.order));
+  const { data: sections } = await db
+    .from("sections")
+    .select("*, questions(*)")
+    .eq("form_id", parseInt(id))
+    .order("order");
 
-  const questionList = await db
-    .select()
-    .from(questions)
-    .orderBy(asc(questions.sectionId), asc(questions.order));
-
-  const sectionsWithQuestions = sectionList.map((s) => ({
+  const sectionsWithSortedQuestions = (sections ?? []).map((s: any) => ({
     ...s,
-    questions: questionList
-      .filter((q) => q.sectionId === s.id)
-      .sort((a, b) => a.order - b.order),
+    questions: [...(s.questions ?? [])].sort((a: any, b: any) => a.order - b.order),
   }));
 
-  return NextResponse.json({ ...form, sections: sectionsWithQuestions });
+  return NextResponse.json({ ...form, sections: sectionsWithSortedQuestions });
 }

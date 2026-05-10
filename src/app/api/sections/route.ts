@@ -1,37 +1,62 @@
 import { NextResponse } from "next/server";
+import { getDB } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
-import { db } from "@/db";
-import { sections, questions } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
 
 export async function POST(req: Request) {
+  const db = getDB();
   const body = await req.json();
-  const [section] = await db
-    .insert(sections)
-    .values({
-      formId: body.formId,
+
+  // Get current max order for this form
+  const { data: existing } = await db
+    .from("sections")
+    .select("order")
+    .eq("form_id", body.form_id)
+    .order("order", { ascending: false })
+    .limit(1);
+
+  const nextOrder = existing && existing.length > 0 ? existing[0].order + 1 : 1;
+
+  const { data, error } = await db
+    .from("sections")
+    .insert({
+      form_id: body.form_id,
       title: body.title,
-      description: body.description,
-      order: body.order,
-      minimumScore: body.minimumScore ?? null,
-      terminationMessage: body.terminationMessage ?? null,
+      description: body.description ?? null,
+      order: nextOrder,
+      minimum_score: body.minimum_score ?? null,
+      termination_message: body.termination_message ?? null,
     })
-    .returning();
-  return NextResponse.json(section, { status: 201 });
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
 }
 
 export async function PUT(req: Request) {
+  const db = getDB();
   const body = await req.json();
-  const [updated] = await db
-    .update(sections)
-    .set({
+  const { data, error } = await db
+    .from("sections")
+    .update({
       title: body.title,
-      description: body.description,
-      minimumScore: body.minimumScore ?? null,
-      terminationMessage: body.terminationMessage ?? null,
+      description: body.description ?? null,
+      minimum_score: body.minimum_score ?? null,
+      termination_message: body.termination_message ?? null,
     })
-    .where(eq(sections.id, body.id))
-    .returning();
-  return NextResponse.json(updated);
+    .eq("id", body.id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+export async function DELETE(req: Request) {
+  const db = getDB();
+  const { id } = await req.json();
+  const { error } = await db.from("sections").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

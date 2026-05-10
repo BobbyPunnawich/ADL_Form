@@ -1,19 +1,24 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/db";
-import { forms, responses } from "@/db/schema";
-import { desc, eq, count } from "drizzle-orm";
+import { getDB } from "@/lib/supabase";
 import Link from "next/link";
 
 export default async function AdminPage() {
-  const allForms = await db.select().from(forms).orderBy(desc(forms.createdAt));
+  const db = getDB();
 
-  const responseCounts = await db
-    .select({ formId: responses.formId, count: count() })
-    .from(responses)
-    .groupBy(responses.formId);
+  const { data: allForms } = await db
+    .from("forms")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  const countMap = Object.fromEntries(responseCounts.map((r) => [r.formId, r.count]));
+  const { data: responseCounts } = await db
+    .from("responses")
+    .select("form_id");
+
+  const countMap: Record<number, number> = {};
+  for (const r of responseCounts ?? []) {
+    countMap[r.form_id] = (countMap[r.form_id] ?? 0) + 1;
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -29,13 +34,13 @@ export default async function AdminPage() {
           <h2 className="text-xl font-semibold text-gray-800">แบบสอบถามทั้งหมด</h2>
         </div>
 
-        {allForms.length === 0 ? (
+        {!allForms || allForms.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <p className="text-gray-500 text-lg">
               ยังไม่มีแบบสอบถาม กรุณา seed ฐานข้อมูลก่อน
             </p>
             <code className="block mt-4 bg-gray-100 rounded-lg p-3 text-sm text-gray-700">
-              npx tsx src/db/seed.ts
+              npm run db:seed
             </code>
           </div>
         ) : (
@@ -70,7 +75,7 @@ export default async function AdminPage() {
                     href={`/admin/forms/${form.id}`}
                     className="px-5 py-2.5 rounded-xl border-2 border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors text-sm"
                   >
-                    ตั้งค่า
+                    ✏️ แก้ไข
                   </Link>
                   <Link
                     href={`/admin/results/${form.id}`}

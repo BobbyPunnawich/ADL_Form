@@ -37,6 +37,7 @@ export const questions = pgTable("questions", {
     .notNull()
     .references(() => sections.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
+  textEn: text("text_en"),
   type: varchar("type", { length: 50 }).notNull().default("multiple_choice"),
   order: integer("order").notNull(),
   // options: [{ label: string, score: number }]
