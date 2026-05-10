@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack --skip-git)",
+      "Read(//c/Users/ASUS/Documents/GitHub/**)",
+      "Bash(npx create-next-app@latest adl-form-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack --skip-git)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3001/admin)",
+      "PowerShell(taskkill *)",
+      "Bash(curl *)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
