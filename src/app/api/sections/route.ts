@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getDB } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +8,6 @@ export async function POST(req: Request) {
   const db = getDB();
   const body = await req.json();
 
-  // Get current max order for this form
   const { data: existing } = await db
     .from("sections")
     .select("order")
@@ -31,12 +31,16 @@ export async function POST(req: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  revalidatePath(`/play/${body.form_id}`);
+  revalidatePath("/play", "layout");
   return NextResponse.json(data, { status: 201 });
 }
 
 export async function PUT(req: Request) {
   const db = getDB();
   const body = await req.json();
+
   const { data, error } = await db
     .from("sections")
     .update({
@@ -50,13 +54,26 @@ export async function PUT(req: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  revalidatePath(`/play/${data.form_id}`);
+  revalidatePath("/play", "layout");
   return NextResponse.json(data);
 }
 
 export async function DELETE(req: Request) {
   const db = getDB();
   const { id } = await req.json();
+
+  const { data: section } = await db
+    .from("sections")
+    .select("form_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await db.from("sections").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (section) revalidatePath(`/play/${section.form_id}`);
+  revalidatePath("/play", "layout");
   return NextResponse.json({ ok: true });
 }

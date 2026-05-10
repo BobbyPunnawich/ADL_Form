@@ -109,6 +109,7 @@ export type Form = {
   id: number;
   title: string;
   description: string | null;
+  closing_message: string | null;
   status: string;
   created_at: string;
   updated_at: string;

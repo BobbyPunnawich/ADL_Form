@@ -42,11 +42,13 @@ function SectionCard({
   const [termMsg, setTermMsg] = useState(section.termination_message ?? "");
   const [savingSection, setSavingSection] = useState(false);
   const [sectionSaved, setSectionSaved] = useState(false);
+  const [sectionError, setSectionError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>(section.questions);
   const [addingQ, setAddingQ] = useState(false);
 
   const handleSaveSection = async () => {
     setSavingSection(true);
+    setSectionError(null);
     try {
       const updated = await api("PUT", "/api/sections", {
         id: section.id,
@@ -58,6 +60,8 @@ function SectionCard({
       onSectionSaved({ ...updated, questions });
       setSectionSaved(true);
       setTimeout(() => setSectionSaved(false), 2000);
+    } catch (e) {
+      setSectionError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
     } finally {
       setSavingSection(false);
     }
@@ -182,11 +186,18 @@ function SectionCard({
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              {sectionError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  ⚠ {sectionError}
+                </p>
+              )}
+            </div>
             <button
               onClick={handleSaveSection}
               disabled={savingSection}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              className={`ml-3 px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 sectionSaved ? "bg-green-100 text-green-700" : "bg-amber-500 text-white hover:bg-amber-600"
               } disabled:opacity-50`}
             >
@@ -237,6 +248,12 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
   const [saveAllTrigger, setSaveAllTrigger] = useState(0);
   const [savingAll, setSavingAll] = useState(false);
 
+  // Form-level settings
+  const [closingMessage, setClosingMessage] = useState(form.closing_message ?? "");
+  const [savingForm, setSavingForm] = useState(false);
+  const [formSaved, setFormSaved] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const handleSectionSaved = useCallback((updated: SectionWithQuestions) => {
     setSections((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }, []);
@@ -264,13 +281,81 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
   const handleSaveAll = async () => {
     setSavingAll(true);
     setSaveAllTrigger((t) => t + 1);
-    // Give saves time to complete before resetting the indicator
     await new Promise((r) => setTimeout(r, 1500));
     setSavingAll(false);
   };
 
+  const handleSaveForm = async () => {
+    setSavingForm(true);
+    setFormError(null);
+    try {
+      await api("PUT", `/api/forms/${form.id}`, {
+        title: form.title,
+        description: form.description,
+        closing_message: closingMessage || null,
+      });
+      setFormSaved(true);
+      setTimeout(() => setFormSaved(false), 2000);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setSavingForm(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {/* Form-level settings */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-gray-50 border-b border-gray-100 px-5 py-3 flex items-center gap-2">
+          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="text-sm font-bold text-gray-700">การตั้งค่าแบบสอบถาม / Form Settings</span>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              ข้อความสรุปท้ายแบบสอบถาม / Closing Message
+            </label>
+            <textarea
+              value={closingMessage}
+              onChange={(e) => setClosingMessage(e.target.value)}
+              rows={3}
+              placeholder="ขอบคุณที่ร่วมตอบแบบสอบถาม... / Thank you for completing this assessment..."
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:border-blue-400 focus:outline-none resize-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              ข้อความนี้จะแสดงเมื่อผู้ตอบทำแบบสอบถามครบทุกส่วนแล้ว / Shown on the final completion screen
+            </p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              {formError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  ⚠ {formError}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-3 ml-3">
+              {formSaved && <span className="text-sm text-green-600 font-medium">✓ บันทึกแล้ว</span>}
+              <button
+                onClick={handleSaveForm}
+                disabled={savingForm}
+                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                  formSaved
+                    ? "bg-green-100 text-green-700"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                } disabled:opacity-50`}
+              >
+                {savingForm ? "กำลังบันทึก..." : formSaved ? "✓ บันทึกแล้ว" : "บันทึก / Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Save All toolbar */}
       <div className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl px-5 py-3 shadow-sm">
         <p className="text-sm text-gray-500">

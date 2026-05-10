@@ -370,6 +370,7 @@ export default function QuestionEditor({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
 
   // Sync local state when question prop changes (e.g. after save from parent)
@@ -387,6 +388,7 @@ export default function QuestionEditor({
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updated = await api("PUT", `/api/questions/${question.id}`, {
         text,
@@ -397,6 +399,8 @@ export default function QuestionEditor({
       onSaved(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ / Save failed");
     } finally {
       setSaving(false);
     }
@@ -520,23 +524,32 @@ export default function QuestionEditor({
         </div>
 
         {/* Save */}
-        <div className="flex items-center justify-end gap-3 pt-1">
-          {saved && (
-            <span className="text-sm text-green-600 font-medium">✓ บันทึกแล้ว / Saved</span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving || !isDirty}
-            className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
-              saved
-                ? "bg-green-100 text-green-700"
-                : isDirty
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            } disabled:opacity-60`}
-          >
-            {saving ? "กำลังบันทึก..." : saved ? "✓ บันทึกแล้ว" : "บันทึกคำถาม / Save"}
-          </button>
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="flex-1">
+            {saveError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                ⚠ {saveError}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {saved && (
+              <span className="text-sm text-green-600 font-medium">✓ บันทึกแล้ว / Saved</span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || !isDirty}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                saved
+                  ? "bg-green-100 text-green-700"
+                  : isDirty
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              } disabled:opacity-60`}
+            >
+              {saving ? "กำลังบันทึก..." : saved ? "✓ บันทึกแล้ว" : "บันทึกคำถาม / Save"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

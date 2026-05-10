@@ -34,12 +34,26 @@ export default async function ResultsPage({
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-8 py-5">
-        <div className="max-w-6xl mx-auto flex items-center gap-4">
-          <Link href="/admin" className="text-gray-400 hover:text-gray-700">← กลับ</Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">ผลการตอบแบบสอบถาม</h1>
-            <p className="text-gray-500 text-sm mt-0.5">{form.title}</p>
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link href="/admin" className="text-gray-400 hover:text-gray-700">← กลับ</Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">ผลการตอบแบบสอบถาม</h1>
+              <p className="text-gray-500 text-sm mt-0.5">{form.title}</p>
+            </div>
           </div>
+          {(responseList ?? []).length > 0 && (
+            <a
+              href={`/api/responses/export?formId=${id}`}
+              download
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              Export Excel
+            </a>
+          )}
         </div>
       </header>
 
@@ -89,6 +103,7 @@ export default async function ResultsPage({
                     <th className="px-5 py-4 text-center font-semibold text-gray-600">รวม</th>
                     <th className="px-5 py-4 text-center font-semibold text-gray-600">สถานะ</th>
                     <th className="px-5 py-4 text-left font-semibold text-gray-600">วันที่</th>
+                    <th className="px-5 py-4"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -96,7 +111,12 @@ export default async function ResultsPage({
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-5 py-4 text-gray-500">{idx + 1}</td>
                       <td className="px-5 py-4 font-mono text-xs text-gray-500">
-                        {r.session_id.slice(-8)}
+                        <Link
+                          href={`/admin/results/${id}/${r.id}`}
+                          className="hover:text-blue-600 hover:underline"
+                        >
+                          {r.session_id.slice(-8)}
+                        </Link>
                       </td>
                       {(sectionList ?? []).map((s) => {
                         const score = (r.section_scores as Record<string, number>)[s.id.toString()];
@@ -131,6 +151,14 @@ export default async function ResultsPage({
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
+                      </td>
+                      <td className="px-5 py-4">
+                        <Link
+                          href={`/admin/results/${id}/${r.id}`}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                        >
+                          ดูคำตอบ →
+                        </Link>
                       </td>
                     </tr>
                   ))}

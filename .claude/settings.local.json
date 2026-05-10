@@ -10,7 +10,14 @@
       "Bash(curl -s http://localhost:3001/admin)",
       "PowerShell(taskkill *)",
       "Bash(curl *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\)\")",
+      "Bash(node -e \"require\\('xlsx'\\); console.log\\('xlsx ok'\\)\")",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"require\\('googleapis'\\); console.log\\('ok'\\)\")",
+      "Bash(Remove-Item \"C:\\\\Users\\\\ASUS\\\\Documents\\\\GitHub\\\\ADL_Form\\\\src\\\\app\\\\admin\\\\results\\\\[formId]\\\\ExportButtons.tsx\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\ASUS\\\\Documents\\\\GitHub\\\\ADL_Form\\\\src\\\\app\\\\api\\\\responses\\\\export-sheets\" -Recurse -Force)"
     ]
   }
 }
