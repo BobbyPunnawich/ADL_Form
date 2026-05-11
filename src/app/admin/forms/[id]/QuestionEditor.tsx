@@ -406,6 +406,12 @@ export default function QuestionEditor({
         options,
         required,
       });
+      // Sync local state to the DB response so isDirty becomes false immediately
+      setText(updated.text);
+      setTextEn(updated.text_en ?? "");
+      setType(updated.type);
+      setOptions(updated.options);
+      setRequired(updated.required ?? true);
       onSaved(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -414,7 +420,7 @@ export default function QuestionEditor({
     } finally {
       setSaving(false);
     }
-  }, [text, textEn, type, options, question.id, onSaved]);
+  }, [text, textEn, type, options, required, question.id, onSaved]);
 
   // Fire save when "Save All" is triggered from parent, but only if dirty
   useEffect(() => {
@@ -437,10 +443,12 @@ export default function QuestionEditor({
 
   return (
     <div className={`bg-white border rounded-xl overflow-hidden transition-colors ${
+      saved ? "border-green-400 shadow-green-100 shadow-md" :
       isDirty ? "border-amber-400 shadow-amber-100 shadow-md" : "border-gray-200"
     }`}>
       {/* Header */}
       <div className={`border-b px-4 py-2.5 flex items-center gap-2 ${
+        saved ? "bg-green-50 border-green-200" :
         isDirty ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200"
       }`}>
         <span className="text-sm font-semibold text-gray-600 flex-shrink-0">ข้อ {number}</span>
@@ -457,12 +465,16 @@ export default function QuestionEditor({
           {QUESTION_TYPE_LABELS[type]}
           <span className="ml-0.5 opacity-60 text-xs">▾</span>
         </button>
-        {isDirty && (
+        {saved ? (
+          <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+            ✓ บันทึกแล้ว
+          </span>
+        ) : isDirty ? (
           <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
             ยังไม่ได้บันทึก
           </span>
-        )}
+        ) : null}
         <div className="flex-1" />
         {/* Move up/down */}
         <div className="flex items-center gap-0.5">
