@@ -331,7 +331,8 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
   const isLastQuestion = isLastInSection && isLastSection;
 
   const currentAnswer = answers[currentQuestion.id.toString()];
-  const canProceed = isQuestionAnswered(currentQuestion, currentAnswer);
+  const isRequired = currentQuestion.required !== false;
+  const canProceed = !isRequired || isQuestionAnswered(currentQuestion, currentAnswer);
 
   const nextLabel = isLastQuestion
     ? (lang === "en" ? "Submit ✓" : "ส่งคำตอบ ✓")
@@ -366,11 +367,18 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
           )}
 
           <div className="bg-white rounded-3xl shadow-lg p-8 mb-6">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-3">
-              {lang === "en"
-                ? `Question ${sectionCurrent} of ${sectionTotal}`
-                : `คำถามที่ ${sectionCurrent} จาก ${sectionTotal}`}
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
+                {lang === "en"
+                  ? `Question ${sectionCurrent} of ${sectionTotal}`
+                  : `คำถามที่ ${sectionCurrent} จาก ${sectionTotal}`}
+              </p>
+              {!isRequired && (
+                <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {lang === "en" ? "Optional" : "ไม่บังคับ"}
+                </span>
+              )}
+            </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-8 leading-snug">
               {lang === "en" && currentQuestion.text_en
                 ? currentQuestion.text_en

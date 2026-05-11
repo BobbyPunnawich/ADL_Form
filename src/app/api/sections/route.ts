@@ -60,6 +60,19 @@ export async function PUT(req: Request) {
   return NextResponse.json(data);
 }
 
+export async function PATCH(req: Request) {
+  const db = getDB();
+  const { updates, form_id } = await req.json(); // [{ id, order }]
+  await Promise.all(
+    (updates as { id: number; order: number }[]).map(({ id, order }) =>
+      db.from("sections").update({ order }).eq("id", id)
+    )
+  );
+  if (form_id) revalidatePath(`/play/${form_id}`);
+  revalidatePath("/play", "layout");
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: Request) {
   const db = getDB();
   const { id } = await req.json();

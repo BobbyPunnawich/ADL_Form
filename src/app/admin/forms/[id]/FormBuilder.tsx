@@ -14,6 +14,36 @@ async function api(method: string, path: string, body?: unknown) {
   return res.json();
 }
 
+// ─── Insert divider (between sections / between questions) ────────────────────
+
+function InsertDivider({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 group py-0.5">
+      <div className="flex-1 h-px bg-gray-200 group-hover:bg-blue-300 transition-colors" />
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        {label}
+      </button>
+      <div className="flex-1 h-px bg-gray-200 group-hover:bg-blue-300 transition-colors" />
+    </div>
+  );
+}
+
 // ─── SectionCard ──────────────────────────────────────────────────────────────
 
 function SectionCard({
@@ -21,6 +51,10 @@ function SectionCard({
   sectionNumber,
   onSectionSaved,
   onSectionDeleted,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   isOnly,
   saveAllTrigger,
 }: {
@@ -28,6 +62,10 @@ function SectionCard({
   sectionNumber: number;
   onSectionSaved: (s: SectionWithQuestions) => void;
   onSectionDeleted: (id: number) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   isOnly: boolean;
   saveAllTrigger: number;
 }) {
@@ -73,14 +111,43 @@ function SectionCard({
     onSectionDeleted(section.id);
   };
 
-  const handleAddQuestion = async () => {
+  // Insert a new question before the given index (questions.length = append)
+  const handleAddQuestion = async (insertBefore: number) => {
     setAddingQ(true);
     try {
       const newQ = await api("POST", "/api/questions", { section_id: section.id });
-      setQuestions((prev) => [...prev, newQ]);
+      setQuestions((prev) => {
+        const next = [...prev];
+        next.splice(insertBefore, 0, newQ);
+        const updates = next.map((q, i) => ({ id: q.id, order: i + 1 }));
+        api("PATCH", "/api/questions", { updates });
+        return next;
+      });
     } finally {
       setAddingQ(false);
     }
+  };
+
+  const moveQuestionUp = (idx: number) => {
+    if (idx === 0) return;
+    setQuestions((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      const updates = next.map((q, i) => ({ id: q.id, order: i + 1 }));
+      api("PATCH", "/api/questions", { updates });
+      return next;
+    });
+  };
+
+  const moveQuestionDown = (idx: number) => {
+    setQuestions((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      const updates = next.map((q, i) => ({ id: q.id, order: i + 1 }));
+      api("PATCH", "/api/questions", { updates });
+      return next;
+    });
   };
 
   const handleQuestionSaved = useCallback((updated: Question) => {
@@ -88,7 +155,14 @@ function SectionCard({
   }, []);
 
   const handleQuestionDeleted = useCallback((id: number) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
+    setQuestions((prev) => {
+      const next = prev.filter((q) => q.id !== id);
+      if (next.length > 0) {
+        const updates = next.map((q, i) => ({ id: q.id, order: i + 1 }));
+        api("PATCH", "/api/questions", { updates });
+      }
+      return next;
+    });
   }, []);
 
   const hasMinScore = minScore !== "" && parseInt(minScore) > 0;
@@ -116,11 +190,34 @@ function SectionCard({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Move up/down */}
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              title="ย้ายส่วนขึ้น"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              title="ย้ายส่วนลง"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
             {!isOnly && (
               <button
                 onClick={handleDeleteSection}
-                className="text-xs text-red-400 hover:text-red-600 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50"
+                className="text-xs text-red-400 hover:text-red-600 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 ml-1"
               >
                 ลบส่วน
               </button>
@@ -152,7 +249,6 @@ function SectionCard({
             />
           </div>
 
-          {/* Branching logic */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <h4 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
               ⚡ เงื่อนไขการผ่านส่วน (Branching Logic)
@@ -209,25 +305,52 @@ function SectionCard({
 
           <div>
             <h4 className="text-sm font-bold text-gray-700 mb-3">คำถาม ({questions.length} ข้อ)</h4>
-            <div className="space-y-3">
-              {questions.map((q, i) => (
-                <QuestionEditor
-                  key={q.id}
-                  question={q}
-                  number={i + 1}
-                  onSaved={handleQuestionSaved}
-                  onDeleted={handleQuestionDeleted}
-                  saveAllTrigger={saveAllTrigger}
+
+            {/* Insert before first question */}
+            {questions.length > 0 && (
+              <div className="mb-2">
+                <InsertDivider
+                  label="แทรกคำถามตรงนี้"
+                  onClick={() => handleAddQuestion(0)}
+                  disabled={addingQ}
                 />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {questions.map((q, i) => (
+                <div key={q.id}>
+                  <QuestionEditor
+                    question={q}
+                    number={i + 1}
+                    onSaved={handleQuestionSaved}
+                    onDeleted={handleQuestionDeleted}
+                    onMoveUp={() => moveQuestionUp(i)}
+                    onMoveDown={() => moveQuestionDown(i)}
+                    canMoveUp={i > 0}
+                    canMoveDown={i < questions.length - 1}
+                    saveAllTrigger={saveAllTrigger}
+                  />
+                  {/* Insert after this question */}
+                  <div className="mt-2">
+                    <InsertDivider
+                      label="แทรกคำถามตรงนี้"
+                      onClick={() => handleAddQuestion(i + 1)}
+                      disabled={addingQ}
+                    />
+                  </div>
+                </div>
               ))}
+
               {questions.length === 0 && (
                 <p className="text-center text-gray-400 py-6 border-2 border-dashed border-gray-200 rounded-xl">
                   ยังไม่มีคำถามในส่วนนี้
                 </p>
               )}
             </div>
+
             <button
-              onClick={handleAddQuestion}
+              onClick={() => handleAddQuestion(questions.length)}
               disabled={addingQ}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 text-blue-600 font-medium rounded-xl hover:border-blue-400 hover:bg-blue-50 disabled:opacity-50 text-sm"
             >
@@ -248,7 +371,6 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
   const [saveAllTrigger, setSaveAllTrigger] = useState(0);
   const [savingAll, setSavingAll] = useState(false);
 
-  // Form-level settings
   const [closingMessage, setClosingMessage] = useState(form.closing_message ?? "");
   const [savingForm, setSavingForm] = useState(false);
   const [formSaved, setFormSaved] = useState(false);
@@ -259,10 +381,18 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
   }, []);
 
   const handleSectionDeleted = useCallback((id: number) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+    setSections((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      if (next.length > 0) {
+        const updates = next.map((s, i) => ({ id: s.id, order: i + 1 }));
+        api("PATCH", "/api/sections", { updates, form_id: form.id });
+      }
+      return next;
+    });
+  }, [form.id]);
 
-  const handleAddSection = async () => {
+  // Insert a new section before the given index (sections.length = append)
+  const handleAddSection = async (insertBefore: number) => {
     setAddingSection(true);
     try {
       const newSection = await api("POST", "/api/sections", {
@@ -272,10 +402,38 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
         minimum_score: null,
         termination_message: null,
       });
-      setSections((prev) => [...prev, { ...newSection, questions: [] }]);
+      setSections((prev) => {
+        const next = [...prev];
+        next.splice(insertBefore, 0, { ...newSection, questions: [] });
+        const updates = next.map((s, i) => ({ id: s.id, order: i + 1 }));
+        api("PATCH", "/api/sections", { updates, form_id: form.id });
+        return next;
+      });
     } finally {
       setAddingSection(false);
     }
+  };
+
+  const moveSectionUp = (idx: number) => {
+    if (idx === 0) return;
+    setSections((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      const updates = next.map((s, i) => ({ id: s.id, order: i + 1 }));
+      api("PATCH", "/api/sections", { updates, form_id: form.id });
+      return next;
+    });
+  };
+
+  const moveSectionDown = (idx: number) => {
+    setSections((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      const updates = next.map((s, i) => ({ id: s.id, order: i + 1 }));
+      api("PATCH", "/api/sections", { updates, form_id: form.id });
+      return next;
+    });
   };
 
   const handleSaveAll = async () => {
@@ -304,7 +462,7 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Form-level settings */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="bg-gray-50 border-b border-gray-100 px-5 py-3 flex items-center gap-2">
@@ -344,9 +502,7 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
                 onClick={handleSaveForm}
                 disabled={savingForm}
                 className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                  formSaved
-                    ? "bg-green-100 text-green-700"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
+                  formSaved ? "bg-green-100 text-green-700" : "bg-blue-600 text-white hover:bg-blue-700"
                 } disabled:opacity-50`}
               >
                 {savingForm ? "กำลังบันทึก..." : formSaved ? "✓ บันทึกแล้ว" : "บันทึก / Save"}
@@ -415,25 +571,47 @@ export default function FormBuilder({ form }: { form: FormWithSections }) {
         </div>
       </div>
 
+      {/* Insert before first section */}
+      <InsertDivider
+        label="เพิ่มส่วนที่นี่"
+        onClick={() => handleAddSection(0)}
+        disabled={addingSection}
+      />
+
       {sections.map((section, i) => (
-        <SectionCard
-          key={section.id}
-          section={section}
-          sectionNumber={i + 1}
-          onSectionSaved={handleSectionSaved}
-          onSectionDeleted={handleSectionDeleted}
-          isOnly={sections.length === 1}
-          saveAllTrigger={saveAllTrigger}
-        />
+        <div key={section.id}>
+          <SectionCard
+            section={section}
+            sectionNumber={i + 1}
+            onSectionSaved={handleSectionSaved}
+            onSectionDeleted={handleSectionDeleted}
+            onMoveUp={() => moveSectionUp(i)}
+            onMoveDown={() => moveSectionDown(i)}
+            canMoveUp={i > 0}
+            canMoveDown={i < sections.length - 1}
+            isOnly={sections.length === 1}
+            saveAllTrigger={saveAllTrigger}
+          />
+          {/* Insert after this section */}
+          <div className="mt-4">
+            <InsertDivider
+              label={i === sections.length - 1 ? "+ เพิ่มส่วนใหม่" : "เพิ่มส่วนที่นี่"}
+              onClick={() => handleAddSection(i + 1)}
+              disabled={addingSection}
+            />
+          </div>
+        </div>
       ))}
 
-      <button
-        onClick={handleAddSection}
-        disabled={addingSection}
-        className="w-full flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-2xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50"
-      >
-        + {addingSection ? "กำลังเพิ่ม..." : "เพิ่มส่วนใหม่"}
-      </button>
+      {sections.length === 0 && (
+        <button
+          onClick={() => handleAddSection(0)}
+          disabled={addingSection}
+          className="w-full flex items-center justify-center gap-2 px-4 py-4 border-2 border-dashed border-gray-300 text-gray-600 font-medium rounded-2xl hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+        >
+          + {addingSection ? "กำลังเพิ่ม..." : "เพิ่มส่วนแรก"}
+        </button>
+      )}
     </div>
   );
 }

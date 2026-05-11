@@ -355,29 +355,38 @@ export default function QuestionEditor({
   number,
   onSaved,
   onDeleted,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
   saveAllTrigger = 0,
 }: {
   question: Question;
   number: number;
   onSaved: (q: Question) => void;
   onDeleted: (id: number) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   saveAllTrigger?: number;
 }) {
   const [text, setText] = useState(question.text);
   const [textEn, setTextEn] = useState(question.text_en ?? "");
   const [type, setType] = useState<QuestionType>(question.type);
   const [options, setOptions] = useState<QuestionOptions>(question.options);
+  const [required, setRequired] = useState(question.required ?? true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
 
-  // Sync local state when question prop changes (e.g. after save from parent)
   const isDirty =
     text !== question.text ||
     textEn !== (question.text_en ?? "") ||
     type !== question.type ||
+    required !== (question.required ?? true) ||
     JSON.stringify(options) !== JSON.stringify(question.options);
 
   const handleTypeChange = (newType: QuestionType) => {
@@ -395,6 +404,7 @@ export default function QuestionEditor({
         text_en: textEn || null,
         type,
         options,
+        required,
       });
       onSaved(updated);
       setSaved(true);
@@ -454,6 +464,48 @@ export default function QuestionEditor({
           </span>
         )}
         <div className="flex-1" />
+        {/* Move up/down */}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            title="ขึ้น / Move up"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            title="ลง / Move down"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-20 disabled:pointer-events-none transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+        {/* Required toggle */}
+        <button
+          type="button"
+          onClick={() => setRequired((v) => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+            required
+              ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+              : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200"
+          }`}
+        >
+          <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+            required ? "border-red-500 bg-red-500" : "border-gray-400 bg-white"
+          }`}>
+            {required && <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />}
+          </span>
+          {required ? "บังคับตอบ / Required" : "ไม่บังคับ / Optional"}
+        </button>
         <button
           onClick={handleDelete}
           disabled={deleting}

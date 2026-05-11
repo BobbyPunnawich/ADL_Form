@@ -3,6 +3,17 @@ import { getDB } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+export async function PATCH(req: Request) {
+  const db = getDB();
+  const { updates } = await req.json(); // [{ id, order }]
+  await Promise.all(
+    (updates as { id: number; order: number }[]).map(({ id, order }) =>
+      db.from("questions").update({ order }).eq("id", id)
+    )
+  );
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: Request) {
   const db = getDB();
   const body = await req.json();

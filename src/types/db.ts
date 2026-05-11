@@ -133,6 +133,7 @@ export type Question = {
   text_en?: string;
   type: QuestionType;
   order: number;
+  required: boolean;
   options: QuestionOptions;
   created_at: string;
 };

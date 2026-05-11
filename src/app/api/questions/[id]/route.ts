@@ -12,14 +12,22 @@ export async function PUT(
   const db = getDB();
   const body = await req.json();
 
-  // Attempt save with text_en. If the column doesn't exist yet (pg code 42703),
-  // fall back to saving without it so the core data is never lost.
+  // Try full update. Fall back progressively if new columns don't exist yet (pg 42703).
   let { data, error } = await db
     .from("questions")
-    .update({ text: body.text, text_en: body.text_en ?? null, type: body.type, options: body.options })
+    .update({ text: body.text, text_en: body.text_en ?? null, type: body.type, options: body.options, required: body.required ?? true })
     .eq("id", parseInt(id))
     .select()
     .single();
+
+  if (error && (error.code === "42703" || error.message?.includes("required"))) {
+    ({ data, error } = await db
+      .from("questions")
+      .update({ text: body.text, text_en: body.text_en ?? null, type: body.type, options: body.options })
+      .eq("id", parseInt(id))
+      .select()
+      .single());
+  }
 
   if (error && (error.code === "42703" || error.message?.includes("text_en"))) {
     ({ data, error } = await db

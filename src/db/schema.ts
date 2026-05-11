@@ -6,6 +6,7 @@ import {
   timestamp,
   serial,
   varchar,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -41,6 +42,7 @@ export const questions = pgTable("questions", {
   textEn: text("text_en"),
   type: varchar("type", { length: 50 }).notNull().default("multiple_choice"),
   order: integer("order").notNull(),
+  required: boolean("required").notNull().default(true),
   // options: [{ label: string, score: number }]
   options: jsonb("options").notNull().$type<Array<{ label: string; score: number }>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
