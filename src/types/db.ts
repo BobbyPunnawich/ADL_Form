@@ -6,6 +6,7 @@ export type QuestionType =
   | "short_answer"    // single-line text
   | "long_answer"     // multi-line textarea
   | "linear_scale"    // numeric rating scale
+  | "likert"          // 5-point MBTI-style circle scale (-2 to +2)
   | "radio_grid"      // matrix: rows × columns, one selection per row
   | "checkbox_grid";  // matrix: rows × columns, multiple selections per row
 
@@ -17,6 +18,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   short_answer: "คำตอบสั้น",
   long_answer: "คำตอบยาว",
   linear_scale: "มาตราส่วน (Scale)",
+  likert: "ลิเคิร์ต 5 ระดับ",
   radio_grid: "ตารางตัวเลือก (Radio Grid)",
   checkbox_grid: "ตารางช่องทำเครื่องหมาย (Checkbox Grid)",
 };
@@ -29,6 +31,7 @@ export const QUESTION_TYPE_ICONS: Record<QuestionType, string> = {
   short_answer: "✏️",
   long_answer: "📝",
   linear_scale: "📊",
+  likert: "⬤",
   radio_grid: "⊞",
   checkbox_grid: "⊟",
 };
@@ -53,6 +56,12 @@ export type ScaleOptions = {
   maxLabel_en?: string;
 };
 
+// options for likert (fixed 5-point scale; labels are customisable per question)
+export type LikertOptions = {
+  labels_th?: [string, string, string, string, string];
+  labels_en?: [string, string, string, string, string];
+};
+
 // options for grid types (radio_grid, checkbox_grid)
 export type GridOptions = {
   rows: string[];
@@ -60,7 +69,7 @@ export type GridOptions = {
   columns: ChoiceOption[];
 };
 
-export type QuestionOptions = ChoiceOptions | TextOptions | ScaleOptions | GridOptions;
+export type QuestionOptions = ChoiceOptions | TextOptions | ScaleOptions | LikertOptions | GridOptions;
 
 // Default options per type
 export function defaultOptions(type: QuestionType): QuestionOptions {
@@ -78,6 +87,8 @@ export function defaultOptions(type: QuestionType): QuestionOptions {
       return { placeholder: "" } as TextOptions;
     case "linear_scale":
       return { min: 1, max: 5, minLabel: "น้อยที่สุด", maxLabel: "มากที่สุด" } as ScaleOptions;
+    case "likert":
+      return {} as LikertOptions;
     case "radio_grid":
     case "checkbox_grid":
       return {
@@ -98,7 +109,7 @@ export type AnswerValue = {
   optionIndex?: number;               // single choice types
   selectedIndices?: number[];         // checkbox
   text?: string;                      // text types
-  scaleValue?: number;                // linear_scale
+  scaleValue?: number;                // linear_scale, likert (-2 to +2)
   rowSelections?: Record<string, number>;    // radio_grid: rowIdx -> colIdx
   rowMultiSelections?: Record<string, number[]>; // checkbox_grid: rowIdx -> colIdxs[]
 };

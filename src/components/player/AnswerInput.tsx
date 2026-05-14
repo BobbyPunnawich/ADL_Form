@@ -2,7 +2,7 @@
 
 import type {
   Question, AnswerValue,
-  ChoiceOption, ChoiceOptions, TextOptions, ScaleOptions, GridOptions,
+  ChoiceOption, ChoiceOptions, TextOptions, ScaleOptions, GridOptions, LikertOptions,
 } from "@/types/db";
 
 export type Lang = "th" | "en";
@@ -395,6 +395,77 @@ function CheckboxGridInput({
   );
 }
 
+// ─── Likert Scale (MBTI-style circles) ───────────────────────────────────────
+
+const LIKERT_DEFAULTS = {
+  th: ["เห็นด้วยอย่างยิ่ง", "เห็นด้วย", "เฉยๆ", "ไม่เห็นด้วย", "ไม่เห็นด้วยอย่างยิ่ง"] as const,
+  en: ["Strongly Agree", "Agree", "Neutral", "Disagree", "Strongly Disagree"] as const,
+};
+
+const LIKERT_STYLES = [
+  { score: 2,  circleSize: "w-14 h-14 sm:w-20 sm:h-20", selClass: "bg-emerald-500 border-emerald-700 ring-4 ring-emerald-200", unselClass: "bg-white border-emerald-400 hover:bg-emerald-50", labelColor: "text-emerald-700" },
+  { score: 1,  circleSize: "w-10 h-10 sm:w-14 sm:h-14", selClass: "bg-emerald-400 border-emerald-600 ring-4 ring-emerald-100", unselClass: "bg-white border-emerald-300 hover:bg-emerald-50", labelColor: "text-emerald-600" },
+  { score: 0,  circleSize: "w-8 h-8 sm:w-10 sm:h-10",  selClass: "bg-gray-400 border-gray-600 ring-4 ring-gray-200",         unselClass: "bg-white border-gray-300 hover:bg-gray-100",    labelColor: "text-gray-500"   },
+  { score: -1, circleSize: "w-10 h-10 sm:w-14 sm:h-14", selClass: "bg-purple-400 border-purple-600 ring-4 ring-purple-100",   unselClass: "bg-white border-purple-300 hover:bg-purple-50", labelColor: "text-purple-600" },
+  { score: -2, circleSize: "w-14 h-14 sm:w-20 sm:h-20", selClass: "bg-purple-500 border-purple-700 ring-4 ring-purple-200",   unselClass: "bg-white border-purple-400 hover:bg-purple-50", labelColor: "text-purple-700" },
+] as const;
+
+function LikertInput({
+  question, answer, onChange, lang,
+}: {
+  question: Question; answer: AnswerValue | undefined;
+  onChange: (a: AnswerValue) => void; lang: Lang;
+}) {
+  const selected = answer?.scaleValue;
+  const opts = question.options as LikertOptions;
+
+  return (
+    <div className="select-none w-full">
+      {/* Endpoint header */}
+      <div className="flex justify-between mb-3 px-1">
+        <span className="text-sm sm:text-base font-semibold text-emerald-600">
+          {lang === "en"
+            ? `← ${opts.labels_en?.[0] ?? LIKERT_DEFAULTS.en[0]}`
+            : `← ${opts.labels_th?.[0] ?? LIKERT_DEFAULTS.th[0]}`}
+        </span>
+        <span className="text-sm sm:text-base font-semibold text-purple-600">
+          {lang === "en"
+            ? `${opts.labels_en?.[4] ?? LIKERT_DEFAULTS.en[4]} →`
+            : `${opts.labels_th?.[4] ?? LIKERT_DEFAULTS.th[4]} →`}
+        </span>
+      </div>
+
+      {/* Circle grid — 5 equal columns, circles centered in each */}
+      <div className="grid grid-cols-5 gap-1 sm:gap-2">
+        {LIKERT_STYLES.map((style, i) => {
+          const isSel = selected === style.score;
+          const label = lang === "en"
+            ? (opts.labels_en?.[i] ?? LIKERT_DEFAULTS.en[i])
+            : (opts.labels_th?.[i] ?? LIKERT_DEFAULTS.th[i]);
+          return (
+            <div key={style.score} className="flex flex-col items-center gap-2 sm:gap-3">
+              {/* Fixed-height cell so all circles share the same midline */}
+              <div className="flex items-center justify-center h-16 sm:h-24">
+                <button
+                  type="button"
+                  onClick={() => onChange({ score: style.score, scaleValue: style.score })}
+                  aria-label={label}
+                  aria-pressed={isSel}
+                  className={`rounded-full border-4 flex-shrink-0 transition-all duration-150 ${style.circleSize} ${isSel ? style.selClass : style.unselClass}`}
+                />
+              </div>
+              {/* Label */}
+              <p className={`text-xs sm:text-sm font-medium text-center leading-tight ${isSel ? style.labelColor : "text-gray-400"}`}>
+                {label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── AnswerInput (dispatch) ───────────────────────────────────────────────────
 
 export default function AnswerInput({
@@ -417,6 +488,7 @@ export default function AnswerInput({
     case "short_answer":    return <ShortAnswerInput {...props} />;
     case "long_answer":     return <LongAnswerInput {...props} />;
     case "linear_scale":    return <LinearScaleInput {...props} />;
+    case "likert":          return <LikertInput {...props} />;
     case "radio_grid":      return <RadioGridInput {...props} />;
     case "checkbox_grid":   return <CheckboxGridInput {...props} />;
     default:                return null;

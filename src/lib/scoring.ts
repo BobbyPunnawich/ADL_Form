@@ -23,6 +23,7 @@ export function calcQuestionScore(question: Question, answer: AnswerValue | unde
     case "long_answer":
       return 0;
     case "linear_scale":
+    case "likert":
       return answer.scaleValue ?? 0;
     case "radio_grid": {
       const grid = opts as GridOptions;
@@ -70,6 +71,7 @@ export function isQuestionAnswered(
     case "long_answer":
       return (answer.text?.trim().length ?? 0) > 0;
     case "linear_scale":
+    case "likert":
       return answer.scaleValue !== undefined;
     case "radio_grid": {
       const grid = question.options as GridOptions;

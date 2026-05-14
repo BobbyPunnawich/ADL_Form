@@ -165,6 +165,18 @@ function SectionCard({
     });
   }, []);
 
+  // Insert duplicate immediately after the original question
+  const handleQuestionDuplicated = useCallback((sourceId: number, newQ: Question) => {
+    setQuestions((prev) => {
+      const sourceIdx = prev.findIndex((q) => q.id === sourceId);
+      const next = [...prev];
+      next.splice(sourceIdx + 1, 0, newQ);
+      const updates = next.map((q, i) => ({ id: q.id, order: i + 1 }));
+      api("PATCH", "/api/questions", { updates });
+      return next;
+    });
+  }, []);
+
   const hasMinScore = minScore !== "" && parseInt(minScore) > 0;
 
   return (
@@ -325,6 +337,7 @@ function SectionCard({
                     number={i + 1}
                     onSaved={handleQuestionSaved}
                     onDeleted={handleQuestionDeleted}
+                    onDuplicated={(newQ) => handleQuestionDuplicated(q.id, newQ)}
                     onMoveUp={() => moveQuestionUp(i)}
                     onMoveDown={() => moveQuestionDown(i)}
                     canMoveUp={i > 0}

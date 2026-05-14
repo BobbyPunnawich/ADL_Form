@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type {
   Question, QuestionType, QuestionOptions,
-  ChoiceOptions, TextOptions, ScaleOptions, GridOptions,
+  ChoiceOptions, TextOptions, ScaleOptions, GridOptions, LikertOptions,
 } from "@/types/db";
 import { QUESTION_TYPE_LABELS, QUESTION_TYPE_ICONS, defaultOptions } from "@/types/db";
 
@@ -22,6 +22,7 @@ const isChoiceType = (t: QuestionType) => CHOICE_TYPES.includes(t);
 const isGridType = (t: QuestionType) => t === "radio_grid" || t === "checkbox_grid";
 const isTextType = (t: QuestionType) => t === "short_answer" || t === "long_answer";
 const isScaleType = (t: QuestionType) => t === "linear_scale";
+const isLikertType = (t: QuestionType) => t === "likert";
 
 // ─── Type selector ────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ function TypeSelector({ value, onChange }: { value: QuestionType; onChange: (t: 
   const groups: { label: string; types: QuestionType[] }[] = [
     { label: "ตัวเลือก / Choice", types: ["multiple_choice", "radio", "checkbox", "dropdown"] },
     { label: "ข้อความ / Text", types: ["short_answer", "long_answer"] },
-    { label: "พิเศษ / Special", types: ["linear_scale", "radio_grid", "checkbox_grid"] },
+    { label: "พิเศษ / Special", types: ["linear_scale", "likert", "radio_grid", "checkbox_grid"] },
   ];
   return (
     <div className="space-y-2">
@@ -224,6 +225,80 @@ function ScaleOptionsEditor({ options, onChange }: { options: ScaleOptions; onCh
   );
 }
 
+// ─── Likert options (editable labels) ────────────────────────────────────────
+
+const LIKERT_META = [
+  { score: 2,  defaultTh: "เห็นด้วยอย่างยิ่ง",   defaultEn: "Strongly Agree",    circleColor: "bg-emerald-500", circleSize: "w-7 h-7" },
+  { score: 1,  defaultTh: "เห็นด้วย",             defaultEn: "Agree",             circleColor: "bg-emerald-300", circleSize: "w-5 h-5" },
+  { score: 0,  defaultTh: "เฉยๆ",                 defaultEn: "Neutral",           circleColor: "bg-gray-300",    circleSize: "w-3.5 h-3.5" },
+  { score: -1, defaultTh: "ไม่เห็นด้วย",          defaultEn: "Disagree",          circleColor: "bg-purple-300",  circleSize: "w-5 h-5" },
+  { score: -2, defaultTh: "ไม่เห็นด้วยอย่างยิ่ง", defaultEn: "Strongly Disagree", circleColor: "bg-purple-500",  circleSize: "w-7 h-7" },
+] as const;
+
+function LikertOptionsEditor({ options, onChange }: { options: LikertOptions; onChange: (o: LikertOptions) => void }) {
+  const thLabels: [string, string, string, string, string] = [
+    options.labels_th?.[0] ?? LIKERT_META[0].defaultTh,
+    options.labels_th?.[1] ?? LIKERT_META[1].defaultTh,
+    options.labels_th?.[2] ?? LIKERT_META[2].defaultTh,
+    options.labels_th?.[3] ?? LIKERT_META[3].defaultTh,
+    options.labels_th?.[4] ?? LIKERT_META[4].defaultTh,
+  ];
+  const enLabels: [string, string, string, string, string] = [
+    options.labels_en?.[0] ?? LIKERT_META[0].defaultEn,
+    options.labels_en?.[1] ?? LIKERT_META[1].defaultEn,
+    options.labels_en?.[2] ?? LIKERT_META[2].defaultEn,
+    options.labels_en?.[3] ?? LIKERT_META[3].defaultEn,
+    options.labels_en?.[4] ?? LIKERT_META[4].defaultEn,
+  ];
+
+  const updateTh = (i: number, val: string) => {
+    const next = [...thLabels] as [string, string, string, string, string];
+    next[i] = val;
+    onChange({ ...options, labels_th: next });
+  };
+  const updateEn = (i: number, val: string) => {
+    const next = [...enLabels] as [string, string, string, string, string];
+    next[i] = val;
+    onChange({ ...options, labels_en: next });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-x-2 gap-y-0.5 text-xs font-medium text-gray-400 px-1">
+        <span />
+        <span>ข้อความ (TH)</span>
+        <span>Label (EN)</span>
+        <span className="text-center">คะแนน</span>
+      </div>
+      {LIKERT_META.map((m, i) => (
+        <div key={m.score} className="grid grid-cols-[28px_1fr_1fr_44px] items-center gap-2">
+          <div className="flex items-center justify-center">
+            <div className={`rounded-full flex-shrink-0 ${m.circleColor} ${m.circleSize}`} />
+          </div>
+          <input
+            type="text"
+            value={thLabels[i]}
+            onChange={(e) => updateTh(i, e.target.value)}
+            placeholder={m.defaultTh}
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:border-blue-400 focus:outline-none w-full"
+          />
+          <input
+            type="text"
+            value={enLabels[i]}
+            onChange={(e) => updateEn(i, e.target.value)}
+            placeholder={m.defaultEn}
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:border-blue-400 focus:outline-none w-full"
+          />
+          <p className="text-sm font-bold text-center text-gray-600">
+            {m.score > 0 ? `+${m.score}` : m.score}
+          </p>
+        </div>
+      ))}
+      <p className="text-xs text-gray-400">คะแนน = ค่าที่เลือก (+2 ถึง −2) ปรับได้เฉพาะข้อความ / Score is fixed; only labels are editable</p>
+    </div>
+  );
+}
+
 // ─── Grid options editor ──────────────────────────────────────────────────────
 
 function GridOptionsEditor({ options, onChange }: { options: GridOptions; onChange: (o: GridOptions) => void }) {
@@ -355,6 +430,7 @@ export default function QuestionEditor({
   number,
   onSaved,
   onDeleted,
+  onDuplicated,
   onMoveUp,
   onMoveDown,
   canMoveUp = false,
@@ -365,6 +441,7 @@ export default function QuestionEditor({
   number: number;
   onSaved: (q: Question) => void;
   onDeleted: (id: number) => void;
+  onDuplicated?: (newQ: Question) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   canMoveUp?: boolean;
@@ -378,6 +455,7 @@ export default function QuestionEditor({
   const [required, setRequired] = useState(question.required ?? true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
@@ -438,6 +516,24 @@ export default function QuestionEditor({
       onDeleted(question.id);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!onDuplicated) return;
+    setDuplicating(true);
+    try {
+      const newQ = await api("POST", "/api/questions", {
+        section_id: question.section_id,
+        text: text,
+        text_en: textEn || null,
+        type,
+        options,
+        required,
+      });
+      onDuplicated(newQ);
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -570,6 +666,7 @@ export default function QuestionEditor({
             {isChoiceType(type) && "ตัวเลือกและคะแนน / Choices & Scores"}
             {isTextType(type) && "ตั้งค่าคำถามข้อความ / Text settings"}
             {isScaleType(type) && "ตั้งค่ามาตราส่วน / Scale settings"}
+            {isLikertType(type) && "มาตราส่วนลิเคิร์ต / Likert scale"}
             {isGridType(type) && "ตั้งค่าตาราง / Grid settings"}
           </label>
 
@@ -581,6 +678,9 @@ export default function QuestionEditor({
           )}
           {isScaleType(type) && (
             <ScaleOptionsEditor options={options as ScaleOptions} onChange={setOptions} />
+          )}
+          {isLikertType(type) && (
+            <LikertOptionsEditor options={options as LikertOptions} onChange={setOptions} />
           )}
           {isGridType(type) && (
             <GridOptionsEditor options={options as GridOptions} onChange={setOptions} />
