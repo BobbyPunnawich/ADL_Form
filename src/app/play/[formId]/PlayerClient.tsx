@@ -11,7 +11,7 @@ type AnswerMap = Record<string, AnswerValue>;
 
 type PageState =
   | { screen: "intro" }
-  | { screen: "question"; sectionIdx: number; questionIdx: number }
+  | { screen: "section"; sectionIdx: number }
   | { screen: "section_break"; nextSectionIdx: number }
   | { screen: "terminated"; message: string }
   | { screen: "done" };
@@ -54,9 +54,7 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
 
   const allSections = form.sections;
 
-  const currentSection = page.screen === "question" ? allSections[page.sectionIdx] : null;
-  const currentQuestion = page.screen === "question" ? currentSection?.questions[page.questionIdx] ?? null : null;
-  const totalQuestionsInSection = currentSection?.questions.length ?? 0;
+  const currentSection = page.screen === "section" ? allSections[page.sectionIdx] : null;
 
   const handleAnswerChange = useCallback((questionId: number, value: AnswerValue) => {
     setAnswers((prev) => ({ ...prev, [questionId.toString()]: value }));
@@ -106,36 +104,12 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
     }
 
     if (sectionIdx + 1 < allSections.length) {
-      // Pause between sections — user must click to continue
       setPage({ screen: "section_break", nextSectionIdx: sectionIdx + 1 });
     } else {
-      // Show done screen immediately; save in background so there's no blank wait
       setPage({ screen: "done" });
       saveResponse(newScores, "completed", undefined);
     }
   }, [allSections, answers, sectionScores, saveResponse]);
-
-  const handleNext = () => {
-    if (page.screen !== "question") return;
-    const { sectionIdx, questionIdx } = page;
-    const section = allSections[sectionIdx];
-    if (questionIdx + 1 < section.questions.length) {
-      setPage({ screen: "question", sectionIdx, questionIdx: questionIdx + 1 });
-    } else {
-      finishSection(sectionIdx);
-    }
-  };
-
-  const handleBack = () => {
-    if (page.screen !== "question") return;
-    const { sectionIdx, questionIdx } = page;
-    if (questionIdx > 0) {
-      setPage({ screen: "question", sectionIdx, questionIdx: questionIdx - 1 });
-    } else if (sectionIdx > 0) {
-      const prevSection = allSections[sectionIdx - 1];
-      setPage({ screen: "question", sectionIdx: sectionIdx - 1, questionIdx: prevSection.questions.length - 1 });
-    }
-  };
 
   // ── Intro ──────────────────────────────────────────────────────────────────
   if (page.screen === "intro") {
@@ -178,7 +152,7 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
                   : "📋 คำแนะนำ: กรุณาตอบคำถามทุกข้อตามความเป็นจริง ไม่มีคำตอบถูกหรือผิด สามารถพักระหว่างส่วนได้"}
               </p>
             </div>
-            <NavButton onClick={() => setPage({ screen: "question", sectionIdx: 0, questionIdx: 0 })}>
+            <NavButton onClick={() => setPage({ screen: "section", sectionIdx: 0 })}>
               {lang === "en" ? "Begin Assessment →" : "เริ่มทำแบบสอบถาม →"}
             </NavButton>
           </div>
@@ -202,7 +176,6 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
             <LangToggle lang={lang} setLang={setLang} />
           </div>
 
-          {/* Completed badge */}
           <div className="flex flex-col items-center text-center mb-8">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-5">
               <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -224,10 +197,8 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
             </p>
           </div>
 
-          {/* Divider */}
           <div className="border-t-2 border-dashed border-gray-200 my-6" />
 
-          {/* Next section preview */}
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-6 mb-8">
             <p className="text-sm font-semibold text-indigo-500 uppercase tracking-wide mb-1">
               {lang === "en" ? "Up next" : "ส่วนถัดไป"}
@@ -250,7 +221,7 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
           </p>
 
           <NavButton
-            onClick={() => setPage({ screen: "question", sectionIdx: page.nextSectionIdx, questionIdx: 0 })}
+            onClick={() => setPage({ screen: "section", sectionIdx: page.nextSectionIdx })}
           >
             {lang === "en" ? `Start Part ${page.nextSectionIdx + 1} →` : `เริ่มส่วนที่ ${page.nextSectionIdx + 1} →`}
           </NavButton>
@@ -320,84 +291,114 @@ export default function PlayerClient({ form }: { form: FormWithSections }) {
     );
   }
 
-  // ── Question screen ───────────────────────────────────────────────────────
-  if (!currentSection || !currentQuestion) return null;
+  // ── Section screen (all questions scrollable) ────────────────────────────
+  if (!currentSection) return null;
 
-  const sectionCurrent = page.questionIdx + 1;
-  const sectionTotal = totalQuestionsInSection;
-  const isFirstQuestion = page.sectionIdx === 0 && page.questionIdx === 0;
-  const isLastInSection = page.questionIdx === totalQuestionsInSection - 1;
-  const isLastSection = page.sectionIdx === allSections.length - 1;
-  const isLastQuestion = isLastInSection && isLastSection;
+  const sectionIdx = page.sectionIdx;
+  const totalSections = allSections.length;
+  const totalQuestions = currentSection.questions.length;
+  const answeredCount = currentSection.questions.filter(
+    (q) => isQuestionAnswered(q, answers[q.id.toString()])
+  ).length;
+  const requiredUnanswered = currentSection.questions.filter(
+    (q) => q.required !== false && !isQuestionAnswered(q, answers[q.id.toString()])
+  );
+  const canFinish = requiredUnanswered.length === 0;
+  const isLastSection = sectionIdx === totalSections - 1;
+  const isFirstSection = sectionIdx === 0;
 
-  const currentAnswer = answers[currentQuestion.id.toString()];
-  const isRequired = currentQuestion.required !== false;
-  const canProceed = !isRequired || isQuestionAnswered(currentQuestion, currentAnswer);
-
-  const nextLabel = isLastQuestion
+  const finishLabel = isLastSection
     ? (lang === "en" ? "Submit ✓" : "ส่งคำตอบ ✓")
-    : isLastInSection
-    ? (lang === "en" ? "Finish Part →" : "จบส่วนนี้ →")
-    : (lang === "en" ? "Next →" : "ถัดไป →");
+    : (lang === "en" ? "Finish Part →" : "จบส่วนนี้ →");
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b-2 border-gray-200 px-6 py-4">
+      <header className="sticky top-0 z-10 bg-white border-b-2 border-gray-200 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-3">
             <p className="text-lg text-gray-500 font-medium">{form.title}</p>
             <LangToggle lang={lang} setLang={setLang} />
           </div>
           <ProgressBar
-            current={sectionCurrent}
-            total={sectionTotal}
+            current={answeredCount}
+            total={totalQuestions}
             sectionTitle={currentSection.title}
-            partNumber={page.sectionIdx + 1}
-            totalParts={allSections.length}
+            partNumber={sectionIdx + 1}
+            totalParts={totalSections}
           />
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="max-w-3xl w-full">
-          {page.questionIdx === 0 && currentSection.description && (
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 mb-6">
+      <div className="flex-1 px-4 py-8">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {currentSection.description && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5">
               <p className="text-lg text-blue-800">{currentSection.description}</p>
             </div>
           )}
 
-          <div className="bg-white rounded-3xl shadow-lg p-8 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
-                {lang === "en"
-                  ? `Question ${sectionCurrent} of ${sectionTotal}`
-                  : `คำถามที่ ${sectionCurrent} จาก ${sectionTotal}`}
-              </p>
-              {!isRequired && (
-                <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {lang === "en" ? "Optional" : "ไม่บังคับ"}
-                </span>
-              )}
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-8 leading-snug">
-              {lang === "en" && currentQuestion.text_en
-                ? currentQuestion.text_en
-                : currentQuestion.text}
-            </h2>
-            <AnswerInput
-              question={currentQuestion}
-              answer={currentAnswer}
-              onChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-              lang={lang}
-            />
-          </div>
+          {currentSection.questions.map((question, qi) => {
+            const answer = answers[question.id.toString()];
+            const isRequired = question.required !== false;
+            const answered = isQuestionAnswered(question, answer);
+            return (
+              <div
+                key={question.id}
+                className={`bg-white rounded-3xl shadow-lg p-8 border-2 transition-colors ${
+                  answered ? "border-green-200" : "border-transparent"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">
+                    {lang === "en" ? `Question ${qi + 1}` : `ข้อที่ ${qi + 1}`}
+                  </p>
+                  {!isRequired && (
+                    <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {lang === "en" ? "Optional" : "ไม่บังคับ"}
+                    </span>
+                  )}
+                  {answered && (
+                    <span className="ml-auto flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6 leading-snug">
+                  {lang === "en" && question.text_en ? question.text_en : question.text}
+                </h2>
+                <AnswerInput
+                  question={question}
+                  answer={answer}
+                  onChange={(value) => handleAnswerChange(question.id, value)}
+                  lang={lang}
+                />
+              </div>
+            );
+          })}
 
-          <div className="flex justify-between gap-4">
-            <NavButton onClick={handleBack} variant="secondary" disabled={isFirstQuestion}>
+          {!canFinish && (
+            <p className="text-center text-sm text-gray-400">
+              {lang === "en"
+                ? `${requiredUnanswered.length} required question${requiredUnanswered.length > 1 ? "s" : ""} remaining`
+                : `ยังเหลืออีก ${requiredUnanswered.length} ข้อที่ต้องตอบ`}
+            </p>
+          )}
+
+          <div className="flex justify-between gap-4 pt-2 pb-8">
+            <NavButton
+              onClick={() => setPage({ screen: "section", sectionIdx: sectionIdx - 1 })}
+              variant="secondary"
+              disabled={isFirstSection}
+            >
               {lang === "en" ? "← Back" : "← ย้อนกลับ"}
             </NavButton>
-            <NavButton onClick={handleNext} disabled={!canProceed || submitting}>
-              {submitting ? (lang === "en" ? "Saving..." : "กำลังบันทึก...") : nextLabel}
+            <NavButton
+              onClick={() => finishSection(sectionIdx)}
+              disabled={!canFinish || submitting}
+            >
+              {submitting ? (lang === "en" ? "Saving..." : "กำลังบันทึก...") : finishLabel}
             </NavButton>
           </div>
         </div>
