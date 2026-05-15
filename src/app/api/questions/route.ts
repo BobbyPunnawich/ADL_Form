@@ -32,7 +32,6 @@ export async function POST(req: Request) {
     .insert({
       section_id: body.section_id,
       text: body.text ?? "คำถามใหม่",
-      text_en: body.text_en ?? null,
       type: body.type ?? "multiple_choice",
       order: nextOrder,
       options: body.options ?? [{ label: "ตัวเลือกที่ 1", score: 0 }],
